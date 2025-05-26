@@ -94,6 +94,66 @@
             background-color: #555;
             cursor: not-allowed;
         }
+        #timeframeControls {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        #timeframeControls button {
+            background-color: #FF9800;
+            color: white;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 2px;
+            font-size: 12px;
+        }
+        #timeframeControls button:hover {
+            background-color: #F57C00;
+        }
+        #timeframeControls button.active {
+            background-color: #4CAF50;
+        }
+        #timeframeControls button.active:hover {
+            background-color: #45a049;
+        }
+        #patternControls {
+            position: absolute;
+            top: 50%;
+            left: 10px;
+            transform: translateY(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+            max-width: 150px;
+        }
+        #patternControls button {
+            background-color: #9C27B0;
+            color: white;
+            padding: 6px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 2px 0;
+            display: block;
+            width: 100%;
+            font-size: 11px;
+        }
+        #patternControls button:hover {
+            background-color: #7B1FA2;
+        }
+        #patternControls button.active {
+            background-color: #4CAF50;
+        }
+        #patternControls button.active:hover {
+            background-color: #45a049;
+        }
         canvas {
             display: block;
         }
@@ -118,6 +178,20 @@
             Example: "2025.05.22,05:15",3340.47,3340.52,3338.80,3338.80,341
         </div>
     </div>
+    <div id="patternControls">
+        <div style="margin-bottom: 5px; font-size: 12px; text-align: center; color: #ccc;">
+            Pattern Detection
+        </div>
+        <button onclick="togglePatternDetection()" id="patternToggle" class="active">Enable Patterns</button>
+        <div style="margin: 8px 0; font-size: 10px; color: #888;">
+            Detected Patterns:
+        </div>
+        <button onclick="togglePattern('doji')" id="pattern-doji" class="active">Doji</button>
+        <button onclick="togglePattern('hammer')" id="pattern-hammer" class="active">Hammer</button>
+        <button onclick="togglePattern('engulfing')" id="pattern-engulfing" class="active">Engulfing</button>
+        <button onclick="togglePattern('morningstar')" id="pattern-morningstar" class="active">Morning Star</button>
+        <button onclick="togglePattern('eveningstar')" id="pattern-eveningstar" class="active">Evening Star</button>
+    </div>
     <div id="scrollControls">
         <button onclick="scrollDataLeft()" id="scrollLeftBtn">◀ Scroll Left</button>
         <button onclick="scrollDataRight()" id="scrollRightBtn">Scroll Right ▶</button>
@@ -125,6 +199,17 @@
         <div style="margin-top: 10px; font-size: 12px; text-align: center; color: #ccc;">
             Navigate Data
         </div>
+    </div>
+    <div id="timeframeControls">
+        <div style="margin-bottom: 5px; font-size: 12px; text-align: center; color: #ccc;">
+            Timeframes
+        </div>
+        <button onclick="setTimeframe('1m')" id="tf-1m">1m</button>
+        <button onclick="setTimeframe('5m')" id="tf-5m" class="active">5m</button>
+        <button onclick="setTimeframe('15m')" id="tf-15m">15m</button>
+        <button onclick="setTimeframe('1h')" id="tf-1h">1h</button>
+        <button onclick="setTimeframe('4h')" id="tf-4h">4h</button>
+        <button onclick="setTimeframe('1D')" id="tf-1D">1D</button>
     </div>
     <div id="controls">
         <ul>
@@ -174,7 +259,18 @@
         let scene, camera, renderer, controls, raycaster, mouse;
         let candlesticks = [];
         let currentData = [];
+        let rawData = []; // Store original unfiltered data
         let scrollOffset = 0; // Track the current scroll position
+        let currentTimeframe = '5m'; // Default timeframe
+        let patternDetectionEnabled = true;
+        let enabledPatterns = {
+            doji: true,
+            hammer: true,
+            engulfing: true,
+            morningstar: true,
+            eveningstar: true
+        };
+        let detectedPatterns = []; // Store detected patterns
         
         // Scroll functions
         function scrollDataLeft() {
@@ -238,8 +334,228 @@
         function resetCamera() {
             if (camera && controls) {
                 camera.position.set(10, 5, 25);
-                // controls.target.set(0, 0, 20);
                 controls.update();
+            }
+        }
+        
+        // Function to set timeframe
+        function setTimeframe(timeframe) {
+            console.log("Setting timeframe to:", timeframe);
+            currentTimeframe = timeframe;
+            
+            // Update button states
+            updateTimeframeButtons();
+            
+            // Process data for the selected timeframe
+            if (rawData.length > 0) {
+                const processedData = processTimeframeData(rawData, timeframe);
+                currentData = processedData;
+                
+                // Clear and recreate visualization
+                clearVisualization();
+                createVisualization(processedData);
+            }
+        }
+        
+        // Function to update timeframe button states
+        function updateTimeframeButtons() {
+            const timeframes = ['1m', '5m', '15m', '1h', '4h', '1D'];
+            timeframes.forEach(tf => {
+                const button = document.getElementById(`tf-${tf}`);
+                if (button) {
+                    if (tf === currentTimeframe) {
+                        button.classList.add('active');
+                    } else {
+                        button.classList.remove('active');
+                    }
+                }
+            });
+        }
+        
+        // Function to process data for different timeframes
+        function processTimeframeData(data, timeframe) {
+            if (!data || data.length === 0) return [];
+            
+            // Sort data by date to ensure proper chronological order
+            const sortedData = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            // Define timeframe intervals in minutes
+            const intervals = {
+                '1m': 1,
+                '5m': 5,
+                '15m': 15,
+                '1h': 60,
+                '4h': 240,
+                '1D': 1440
+            };
+            
+            const intervalMinutes = intervals[timeframe];
+            if (!intervalMinutes) return sortedData;
+            
+            // Group data by timeframe intervals
+            const groupedData = {};
+            
+            sortedData.forEach(candle => {
+                const date = new Date(candle.date);
+                
+                // Round down to the nearest interval
+                const intervalStart = new Date(date);
+                if (timeframe === '1D') {
+                    intervalStart.setHours(0, 0, 0, 0);
+                } else {
+                    const minutes = intervalStart.getMinutes();
+                    const roundedMinutes = Math.floor(minutes / intervalMinutes) * intervalMinutes;
+                    intervalStart.setMinutes(roundedMinutes, 0, 0);
+                }
+                
+                const key = intervalStart.getTime();
+                
+                if (!groupedData[key]) {
+                    groupedData[key] = {
+                        date: intervalStart.toISOString(),
+                        open: candle.open,
+                        high: candle.high,
+                        low: candle.low,
+                        close: candle.close,
+                        volume: candle.volume,
+                        count: 1
+                    };
+                } else {
+                    // Aggregate OHLCV data
+                    groupedData[key].high = Math.max(groupedData[key].high, candle.high);
+                    groupedData[key].low = Math.min(groupedData[key].low, candle.low);
+                    groupedData[key].close = candle.close; // Last close becomes the close
+                    groupedData[key].volume += candle.volume;
+                    groupedData[key].count++;
+                }
+            });
+            
+            // Convert back to array and sort by date
+            const result = Object.values(groupedData).sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            console.log(`Processed ${sortedData.length} candles into ${result.length} ${timeframe} candles`);
+            return result;
+        }
+        
+        // Candlestick Pattern Recognition Functions
+        function detectPatterns(data) {
+            if (!patternDetectionEnabled || !data || data.length < 3) return [];
+            
+            const patterns = [];
+            
+            for (let i = 2; i < data.length; i++) {
+                const prev2 = data[i - 2];
+                const prev1 = data[i - 1];
+                const current = data[i];
+                
+                // Detect various patterns
+                if (enabledPatterns.doji && isDoji(current)) {
+                    patterns.push({ index: i, type: 'doji', name: 'Doji', color: 0xFFEB3B });
+                }
+                
+                if (enabledPatterns.hammer && isHammer(current)) {
+                    patterns.push({ index: i, type: 'hammer', name: 'Hammer', color: 0x00BCD4 });
+                }
+                
+                if (enabledPatterns.engulfing && isBullishEngulfing(prev1, current)) {
+                    patterns.push({ index: i, type: 'engulfing', name: 'Bullish Engulfing', color: 0x4CAF50 });
+                } else if (enabledPatterns.engulfing && isBearishEngulfing(prev1, current)) {
+                    patterns.push({ index: i, type: 'engulfing', name: 'Bearish Engulfing', color: 0xF44336 });
+                }
+                
+                if (enabledPatterns.morningstar && isMorningStar(prev2, prev1, current)) {
+                    patterns.push({ index: i, type: 'morningstar', name: 'Morning Star', color: 0x03A9F4 });
+                }
+                
+                if (enabledPatterns.eveningstar && isEveningStar(prev2, prev1, current)) {
+                    patterns.push({ index: i, type: 'eveningstar', name: 'Evening Star', color: 0xFF5722 });
+                }
+            }
+            
+            console.log(`Detected ${patterns.length} patterns`);
+            return patterns;
+        }
+        
+        // Pattern detection helper functions
+        function isDoji(candle) {
+            const bodySize = Math.abs(candle.close - candle.open);
+            const totalRange = candle.high - candle.low;
+            return totalRange > 0 && (bodySize / totalRange) < 0.1;
+        }
+        
+        function isHammer(candle) {
+            const bodySize = Math.abs(candle.close - candle.open);
+            const lowerShadow = Math.min(candle.open, candle.close) - candle.low;
+            const upperShadow = candle.high - Math.max(candle.open, candle.close);
+            const totalRange = candle.high - candle.low;
+            
+            return totalRange > 0 && 
+                   lowerShadow > (bodySize * 2) && 
+                   upperShadow < (bodySize * 0.5) &&
+                   bodySize > 0;
+        }
+        
+        function isBullishEngulfing(prev, current) {
+            return prev.close < prev.open && // Previous is bearish
+                   current.close > current.open && // Current is bullish
+                   current.open < prev.close && // Current opens below previous close
+                   current.close > prev.open; // Current closes above previous open
+        }
+        
+        function isBearishEngulfing(prev, current) {
+            return prev.close > prev.open && // Previous is bullish
+                   current.close < current.open && // Current is bearish
+                   current.open > prev.close && // Current opens above previous close
+                   current.close < prev.open; // Current closes below previous open
+        }
+        
+        function isMorningStar(first, second, third) {
+            const firstBearish = first.close < first.open;
+            const secondSmall = Math.abs(second.close - second.open) < Math.abs(first.close - first.open) * 0.3;
+            const thirdBullish = third.close > third.open;
+            const gapDown = second.high < first.close;
+            const gapUp = third.open > second.high;
+            
+            return firstBearish && secondSmall && thirdBullish && gapDown && gapUp;
+        }
+        
+        function isEveningStar(first, second, third) {
+            const firstBullish = first.close > first.open;
+            const secondSmall = Math.abs(second.close - second.open) < Math.abs(first.close - first.open) * 0.3;
+            const thirdBearish = third.close < third.open;
+            const gapUp = second.low > first.close;
+            const gapDown = third.open < second.low;
+            
+            return firstBullish && secondSmall && thirdBearish && gapUp && gapDown;
+        }
+        
+        // Pattern control functions
+        function togglePatternDetection() {
+            patternDetectionEnabled = !patternDetectionEnabled;
+            const button = document.getElementById('patternToggle');
+            if (button) {
+                button.textContent = patternDetectionEnabled ? 'Enable Patterns' : 'Disable Patterns';
+                button.classList.toggle('active', patternDetectionEnabled);
+            }
+            
+            // Recreate visualization to update patterns
+            if (currentData.length > 0) {
+                clearVisualization();
+                createVisualization(currentData);
+            }
+        }
+        
+        function togglePattern(patternType) {
+            enabledPatterns[patternType] = !enabledPatterns[patternType];
+            const button = document.getElementById(`pattern-${patternType}`);
+            if (button) {
+                button.classList.toggle('active', enabledPatterns[patternType]);
+            }
+            
+            // Recreate visualization to update patterns
+            if (currentData.length > 0) {
+                clearVisualization();
+                createVisualization(currentData);
             }
         }
         
@@ -358,9 +674,13 @@
                     // Clear existing visualization
                     clearVisualization();
                     
+                    // Store raw data and process for current timeframe
+                    rawData = data;
+                    const processedData = processTimeframeData(data, currentTimeframe);
+                    currentData = processedData;
+                    
                     // Create new visualization
-                    currentData = data;
-                    createVisualization(data);
+                    createVisualization(processedData);
                     
                     document.getElementById('loading').style.display = 'none';
                     console.log("CSV data loaded successfully");
@@ -390,9 +710,13 @@
             // Clear existing visualization
             clearVisualization();
             
-            // Create visualization with mock data
-            currentData = mockData;
-            createVisualization(mockData);
+            // Store raw data and process for current timeframe
+            rawData = mockData;
+            const processedData = processTimeframeData(mockData, currentTimeframe);
+            currentData = processedData;
+            
+            // Create visualization with processed data
+            createVisualization(processedData);
             
             document.getElementById('loading').style.display = 'none';
             console.log("Mock data loaded successfully");
@@ -406,14 +730,20 @@
             candlesticks.forEach(candlestick => {
                 scene.remove(candlestick.wick);
                 scene.remove(candlestick.body);
+                if (candlestick.indicator) {
+                    scene.remove(candlestick.indicator);
+                    candlestick.indicator.geometry.dispose();
+                    candlestick.indicator.material.dispose();
+                }
                 candlestick.wick.geometry.dispose();
                 candlestick.body.geometry.dispose();
                 candlestick.wick.material.dispose();
                 candlestick.body.material.dispose();
             });
             
-            // Clear candlesticks array
+            // Clear arrays
             candlesticks = [];
+            detectedPatterns = [];
             
             // Reset scroll offset
             scrollOffset = 0;
@@ -504,8 +834,10 @@
             
             // Use mock data initially
             console.log("Using mock data initially");
-            currentData = mockData;
-            createVisualization(mockData);
+            rawData = mockData;
+            const processedData = processTimeframeData(mockData, currentTimeframe);
+            currentData = processedData;
+            createVisualization(processedData);
             
             // Hide loading message
             document.getElementById('loading').style.display = 'none';
@@ -517,6 +849,9 @@
         // Create 3D visualization from stock data
         function createVisualization(data) {
             console.log("Creating visualization with data:", data);
+            
+            // Detect patterns before creating visualization
+            detectedPatterns = detectPatterns(data);
             
             // Find min and max values for scaling
             let minPrice = Infinity;
@@ -556,13 +891,23 @@
                 const volumeRange = maxVolume - minVolume;
                 const normalizedVolume = ((day.volume - minVolume) / volumeRange) * 3 + 0.5;
                 
+                // Check if this candlestick has a pattern
+                const pattern = detectedPatterns.find(p => p.index === index);
+                
                 // Create candlestick
                 const isUp = day.close >= day.open;
-                const candleColor = isUp ? 0x00ff00 : 0xff0000;
+                let candleColor = isUp ? 0x00ff00 : 0xff0000;
+                
+                // Override color if pattern detected
+                if (pattern && patternDetectionEnabled) {
+                    candleColor = pattern.color;
+                }
                 
                 // Create wick (vertical line)
                 const wickGeometry = new THREE.CylinderGeometry(0.05, 0.05, normalizedHigh - normalizedLow, 8);
-                const wickMaterial = new THREE.MeshPhongMaterial({ color: 0xcccccc });
+                const wickMaterial = new THREE.MeshPhongMaterial({ 
+                    color: pattern && patternDetectionEnabled ? pattern.color : 0xcccccc 
+                });
                 const wick = new THREE.Mesh(wickGeometry, wickMaterial);
                 wick.position.set(index, (normalizedHigh + normalizedLow) / 2, 0);
                 wick.castShadow = true;
@@ -582,12 +927,34 @@
                 body.castShadow = true;
                 scene.add(body);
                 
-                // Store reference to candlestick for interaction
-                candlesticks.push({
-                    wick: wick,
-                    body: body,
-                    data: day
-                });
+                // Add pattern indicator above candlestick if pattern detected
+                if (pattern && patternDetectionEnabled) {
+                    const textGeometry = new THREE.SphereGeometry(0.2, 8, 8);
+                    const textMaterial = new THREE.MeshPhongMaterial({ 
+                        color: pattern.color,
+                        emissive: pattern.color,
+                        emissiveIntensity: 0.3
+                    });
+                    const indicator = new THREE.Mesh(textGeometry, textMaterial);
+                    indicator.position.set(index, normalizedHigh + 1, 0);
+                    scene.add(indicator);
+                    
+                    // Store pattern info with candlestick
+                    candlesticks.push({
+                        wick: wick,
+                        body: body,
+                        indicator: indicator,
+                        data: day,
+                        pattern: pattern
+                    });
+                } else {
+                    // Store reference to candlestick for interaction
+                    candlesticks.push({
+                        wick: wick,
+                        body: body,
+                        data: day
+                    });
+                }
             });
             
             // Position camera to view all candlesticks
@@ -671,11 +1038,11 @@
                     // Update info text
                     hoverInfoElement.innerHTML = `
                         <strong>Date:</strong> ${dateStr} ${timeStr}<br>
-                        <strong>Open:</strong> $${candlestick.data.open.toFixed(2)}<br>
-                        <strong>High:</strong> $${candlestick.data.high.toFixed(2)}<br>
-                        <strong>Low:</strong> $${candlestick.data.low.toFixed(2)}<br>
-                        <strong>Close:</strong> $${candlestick.data.close.toFixed(2)}<br>
-                        <strong>Volume:</strong> ${candlestick.data.volume.toLocaleString()}
+                        <strong>Open:</strong> ${candlestick.data.open.toFixed(2)}<br>
+                        <strong>High:</strong> ${candlestick.data.high.toFixed(2)}<br>
+                        <strong>Low:</strong> ${candlestick.data.low.toFixed(2)}<br>
+                        <strong>Close:</strong> ${candlestick.data.close.toFixed(2)}<br>
+                        <strong>Volume:</strong> ${candlestick.data.volume.toLocaleString()}${candlestick.pattern ? `<br><strong style="color: ${candlestick.pattern.color === 0xFFEB3B ? '#FFEB3B' : candlestick.pattern.color === 0x00BCD4 ? '#00BCD4' : candlestick.pattern.color === 0x4CAF50 ? '#4CAF50' : candlestick.pattern.color === 0xF44336 ? '#F44336' : candlestick.pattern.color === 0x03A9F4 ? '#03A9F4' : '#FF5722'};">Pattern: ${candlestick.pattern.name}</strong>` : ''}
                     `;
                 }
             } else {
