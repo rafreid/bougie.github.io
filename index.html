@@ -65,6 +65,35 @@
         #fileInput button:hover {
             background-color: #45a049;
         }
+        #scrollControls {
+            position: absolute;
+            top: 50%;
+            right: 10px;
+            transform: translateY(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        #scrollControls button {
+            background-color: #2196F3;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px 0;
+            display: block;
+            width: 100%;
+            font-size: 14px;
+        }
+        #scrollControls button:hover {
+            background-color: #1976D2;
+        }
+        #scrollControls button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
         canvas {
             display: block;
         }
@@ -74,6 +103,9 @@
     <div id="info">
         <h2>BOUGIE-3D</h2>
         <div id="hoverInfo">Hover over a XAUUSD candlesticks to see details</div>
+        <div id="cameraInfo" style="margin-top: 10px; font-size: 12px; color: #aaa;">
+            <strong>Camera Position:</strong> X: <span id="camX">0.00</span> | Y: <span id="camY">0.00</span> | Z: <span id="camZ">0.00</span>
+        </div>
     </div>
     <div id="loading">Loading data...</div>
     <div id="fileInput">
@@ -85,12 +117,20 @@
             Example: "2025.05.22,05:15",3340.47,3340.52,3338.80,3338.80,341
         </div>
     </div>
+    <div id="scrollControls">
+        <button onclick="scrollDataLeft()" id="scrollLeftBtn">◀ Scroll Left</button>
+        <button onclick="scrollDataRight()" id="scrollRightBtn">Scroll Right ▶</button>
+        <div style="margin-top: 10px; font-size: 12px; text-align: center; color: #ccc;">
+            Navigate Data
+        </div>
+    </div>
     <div id="controls">
         <ul>
             <li>Left click + drag: Rotate camera</li>
             <li>Right click + drag: Pan camera</li>
             <li>Scroll: Zoom in/out</li>
             <li>Hover over candlestick: View details</li>
+            <li>Arrow keys: Navigate data left/right</li>
         </ul>
         <p>AFLUX Systems LLC - R. Reid - (C) 2025</p>
     </div>
@@ -132,6 +172,78 @@
         let scene, camera, renderer, controls, raycaster, mouse;
         let candlesticks = [];
         let currentData = [];
+        let scrollOffset = 0; // Track the current scroll position
+        
+        // Scroll functions
+        function scrollDataLeft() {
+            console.log("Scroll left clicked, current offset:", scrollOffset);
+            if (scrollOffset > 0) {
+                scrollOffset--;
+                console.log("New offset:", scrollOffset);
+                updateCandlestickPositions();
+                updateScrollButtons();
+            } else {
+                console.log("Cannot scroll left further");
+            }
+        }
+        
+        function scrollDataRight() {
+            console.log("Scroll right clicked, current offset:", scrollOffset);
+            if (scrollOffset < currentData.length - 1) {
+                scrollOffset++;
+                console.log("New offset:", scrollOffset);
+                updateCandlestickPositions();
+                updateScrollButtons();
+            } else {
+                console.log("Cannot scroll right further");
+            }
+        }
+        
+        function updateCandlestickPositions() {
+            console.log("Updating positions with offset:", scrollOffset);
+            candlesticks.forEach((candlestick, index) => {
+                const newX = index - scrollOffset;
+                candlestick.wick.position.x = newX;
+                candlestick.body.position.x = newX;
+            });
+            
+            // Update camera target to follow the center of visible candlesticks
+            const centerX = (currentData.length - 1) / 2 - scrollOffset;
+            controls.target.set(centerX, 5, 0);
+            controls.update();
+        }
+        
+        function updateScrollButtons() {
+            const leftBtn = document.getElementById('scrollLeftBtn');
+            const rightBtn = document.getElementById('scrollRightBtn');
+            
+            console.log("Updating button states - offset:", scrollOffset, "data length:", currentData.length);
+            
+            if (leftBtn && rightBtn) {
+                const canScrollLeft = scrollOffset > 0;
+                const canScrollRight = scrollOffset < currentData.length - 1;
+                
+                leftBtn.disabled = !canScrollLeft;
+                rightBtn.disabled = !canScrollRight;
+                
+                console.log("Left button enabled:", canScrollLeft, "Right button enabled:", canScrollRight);
+            } else {
+                console.log("Buttons not found!");
+            }
+        }
+        
+        // Function to update camera coordinates display
+        function updateCameraDisplay() {
+            const camX = document.getElementById('camX');
+            const camY = document.getElementById('camY');
+            const camZ = document.getElementById('camZ');
+            
+            if (camera) {
+                if (camX) camX.textContent = camera.position.x.toFixed(2);
+                if (camY) camY.textContent = camera.position.y.toFixed(2);
+                if (camZ) camZ.textContent = camera.position.z.toFixed(2);
+            }
+        }
         
         // Function to parse CSV data
         function parseCSV(csvText) {
@@ -287,6 +399,9 @@
             // Clear candlesticks array
             candlesticks = [];
             
+            // Reset scroll offset
+            scrollOffset = 0;
+            
             // Remove platform if it exists
             const platform = scene.getObjectByName('platform');
             if (platform) {
@@ -367,6 +482,9 @@
             
             // Handle mouse move for hover effects
             window.addEventListener('mousemove', onMouseMove);
+            
+            // Handle keyboard events for scrolling
+            window.addEventListener('keydown', onKeyDown);
             
             // Use mock data initially
             console.log("Using mock data initially");
@@ -460,6 +578,9 @@
             camera.position.set(data.length / 2 - 0.5, 10, 20);
             controls.target.set(data.length / 2 - 0.5, 5, 0);
             controls.update();
+            
+            // Initialize scroll buttons
+            updateScrollButtons();
         }
         
         // Handle window resize
@@ -474,6 +595,20 @@
             // Calculate mouse position in normalized device coordinates
             mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        }
+        
+        // Handle keyboard events for scrolling
+        function onKeyDown(event) {
+            switch(event.key) {
+                case 'ArrowLeft':
+                    event.preventDefault();
+                    scrollDataLeft();
+                    break;
+                case 'ArrowRight':
+                    event.preventDefault();
+                    scrollDataRight();
+                    break;
+            }
         }
         
         // Check for intersections with candlesticks
@@ -539,6 +674,9 @@
             
             // Update controls
             controls.update();
+            
+            // Update camera coordinates display
+            updateCameraDisplay();
             
             // Check for intersections
             checkIntersections();
