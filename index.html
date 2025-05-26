@@ -92,7 +92,7 @@
             <li>Scroll: Zoom in/out</li>
             <li>Hover over candlestick: View details</li>
         </ul>
-        <p>AFLUX Systems - R. Reid - (C) 2025</p>
+        <p>AFLUX Systems LLC - R. Reid - (C) 2025</p>
     </div>
 
     <!-- Load Three.js directly from CDN -->
@@ -336,6 +336,11 @@
             // Add grid for reference
             const gridHelper = new THREE.GridHelper(50, 50, 0x555555, 0x333333);
             scene.add(gridHelper);
+
+            // Add grid for reference
+            const gridHelper2 = new THREE.GridHelper(50, 50, 0x555555, 0x333333);
+            gridHelper.rotation.x=Math.PI/2;
+            scene.add(gridHelper2);
             
             // Add axes for reference
             const axesHelper = new THREE.AxesHelper(10);
@@ -396,13 +401,13 @@
             console.log("Volume range:", minVolume, "to", maxVolume);
             
             // Create base platform
-            const platformGeometry = new THREE.BoxGeometry(data.length + 2, 0.5, 15);
-            const platformMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 });
-            const platform = new THREE.Mesh(platformGeometry, platformMaterial);
-            platform.position.set(data.length / 2 - 0.5, -0.25, 0);
-            platform.receiveShadow = true;
-            platform.name = 'platform'; // Add name for easy removal
-            scene.add(platform);
+            // const platformGeometry = new THREE.BoxGeometry(data.length + 2, 0.5, 15);
+            // const platformMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 });
+            // const platform = new THREE.Mesh(platformGeometry, platformMaterial);
+            // platform.position.set(data.length / 2 - 0.5, -0.25, 0);
+            // platform.receiveShadow = true;
+            // platform.name = 'platform'; // Add name for easy removal
+            // scene.add(platform);
             
             // Create candlesticks
             data.forEach((day, index) => {
@@ -510,6 +515,8 @@
                     const dateStr = date.toLocaleDateString();
                     const timeStr = date.toLocaleTimeString();
                     
+                    hoverInfoElement.style.color = candlestick.data.open.toFixed(2) < candlestick.data.close.toFixed(2) ? "green" : "red";
+
                     // Update info text
                     hoverInfoElement.innerHTML = `
                         <strong>Date:</strong> ${dateStr} ${timeStr}<br>
