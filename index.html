@@ -104,7 +104,8 @@
         <h2>BOUGIE-3D</h2>
         <div id="hoverInfo">Hover over a XAUUSD candlesticks to see details</div>
         <div id="cameraInfo" style="margin-top: 10px; font-size: 12px; color: #aaa;">
-            <strong>Camera Position:</strong> X: <span id="camX">0.00</span> | Y: <span id="camY">0.00</span> | Z: <span id="camZ">0.00</span>
+            <strong>Camera Position:</strong> X: <span id="camX">0.00</span> | Y: <span id="camY">0.00</span> | Z: <span id="camZ">0.00</span><br>
+            <strong>Cursor Position:</strong> X: <span id="cursorX">0.00</span> | Y: <span id="cursorY">0.00</span>
         </div>
     </div>
     <div id="loading">Loading data...</div>
@@ -237,12 +238,17 @@
             const camX = document.getElementById('camX');
             const camY = document.getElementById('camY');
             const camZ = document.getElementById('camZ');
+            const cursorX = document.getElementById('cursorX');
+            const cursorY = document.getElementById('cursorY');
             
             if (camera) {
                 if (camX) camX.textContent = camera.position.x.toFixed(2);
                 if (camY) camY.textContent = camera.position.y.toFixed(2);
                 if (camZ) camZ.textContent = camera.position.z.toFixed(2);
             }
+            
+            if (cursorX) cursorX.textContent = mouse.x.toFixed(2);
+            if (cursorY) cursorY.textContent = mouse.y.toFixed(2);
         }
         
         // Function to parse CSV data
