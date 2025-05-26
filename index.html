@@ -121,6 +121,7 @@
     <div id="scrollControls">
         <button onclick="scrollDataLeft()" id="scrollLeftBtn">◀ Scroll Left</button>
         <button onclick="scrollDataRight()" id="scrollRightBtn">Scroll Right ▶</button>
+        <button onclick="resetCamera()" id="resetCameraBtn" style="margin-top: 10px;">Reset Camera</button>
         <div style="margin-top: 10px; font-size: 12px; text-align: center; color: #ccc;">
             Navigate Data
         </div>
@@ -230,6 +231,15 @@
                 console.log("Left button enabled:", canScrollLeft, "Right button enabled:", canScrollRight);
             } else {
                 console.log("Buttons not found!");
+            }
+        }
+        
+        // Function to reset camera position
+        function resetCamera() {
+            if (camera && controls) {
+                camera.position.set(10, 5, 25);
+                // controls.target.set(0, 0, 20);
+                controls.update();
             }
         }
         
